@@ -1,8 +1,15 @@
 #include <allegro5/allegro.h>
+#include <allegro5/allegro_image.h>
 #include <stdio.h>
+#include "Block.h"
+#include "Mapa.h"
+
+using namespace std;
 
 int main()
 {
+    Mapa *mapa;
+    ALLEGRO_DISPLAY *display;
     bool sair = false;
 
     // Inicializa as bibliotecas Allegro
@@ -12,30 +19,35 @@ int main()
         return -1;
     }
 
-    ALLEGRO_DISPLAY *display = al_create_display(224, 288);
+    // Inicializa as bibliotecas de imagens Allegro
+    if(!al_init_image_addon())
+    {
+        printf("Erro ao inicializar as bibliotecas de imagens do Allegro!");
+        return -1;
+    }
+
+    // Cria o display
+    display = al_create_display(512, 512);
     if (!display)
     {
         printf("Erro ao criar o display!");
         return -1;
     }
 
-    ALLEGRO_BITMAP *mapa = al_load_bitmap("mapa.jpg");
-    if (!mapa)
-    {
-        printf("Erro ao carregar o mapa!");
-        al_destroy_display(display);
-        return -1;
-    }
-
+    printf("Colorindo o fundo");
     al_clear_to_color(al_map_rgb(0, 0, 0));
-    al_draw_bitmap(mapa, 0, 0, 0);
+
+    printf("Criando o mapa");
+    mapa = new Mapa(32,32);
+
     al_flip_display();
 
     // Aguarda 5 segundos
     al_rest(5);
 
-    al_destroy_bitmap(mapa);
     al_destroy_display(display);
+
+    delete(mapa);
 
     return 0;
 }
