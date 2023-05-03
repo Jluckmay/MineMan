@@ -10,7 +10,9 @@ class Block
         ALLEGRO_BITMAP *textura;
         
         char image[100];
-        
+        int x;
+        int y;
+
     public:
 
         Block();
@@ -21,7 +23,13 @@ class Block
 
         void setImage(const char* image);
 
+        char* getImage();
+
         void setTexture();
+
+        void setCoord(int x, int y);
+
+        void draw();
 
         ALLEGRO_BITMAP* getTexture();
 };

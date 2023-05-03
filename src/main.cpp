@@ -34,20 +34,19 @@ int main()
         return -1;
     }
 
-    printf("Colorindo o fundo");
     al_clear_to_color(al_map_rgb(0, 0, 0));
 
-    printf("Criando o mapa");
     mapa = new Mapa(32,32);
+    mapa->createWalls();
+    mapa->createCage(4);
 
     al_flip_display();
 
-    // Aguarda 5 segundos
-    al_rest(5);
+    getchar();
 
     al_destroy_display(display);
 
-    delete(mapa);
+    // delete(mapa);
 
     return 0;
 }

@@ -35,7 +35,8 @@ void Block::setImage(const char* image)
 
 void Block::setTexture()
 {
-    if(!al_load_bitmap(this->image))
+    textura = al_load_bitmap(this->image);
+    if(!textura)
     {
         printf("Erro ao carregar a textura");
     }
@@ -44,4 +45,20 @@ void Block::setTexture()
 ALLEGRO_BITMAP* Block::getTexture()
 {
     return textura;
+}
+
+void Block::setCoord(int x, int y)
+{
+    this->x = x;
+    this->y = y;
+}
+
+void Block::draw()
+{
+    al_draw_bitmap(this->getTexture(),(x*16),(y*16),0);
+}
+
+char* Block::getImage()
+{
+    return image;
 }
