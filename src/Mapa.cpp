@@ -1,4 +1,5 @@
 #include "Mapa.h"
+#include "Ore.h"
 #include <stdlib.h>
 
 Mapa::Mapa()
@@ -27,10 +28,12 @@ Mapa::Mapa(int comp, int alt)
             if(i == 0 || i == (alt-1))
             {
                 mapa[i][j].setImage("Sprites/Smooth_Stone.bmp");
+                mapa[i][j].wall();
             }
             else if(j == 0 || j == (comp-1))
             {
                 mapa[i][j].setImage("Sprites/Smooth_Stone.bmp");
+                mapa[i][j].wall();
             }
             else
             {
@@ -63,18 +66,21 @@ void Mapa::createWall(int x, int y)
     mapa[y][x].setImage("Sprites/Cobble_Stone.png");
     mapa[y][x].setTexture();
     mapa[y][x].draw();
+    mapa[y][x].wall();
 
     if(x==(comprimento-2))
     {
         mapa[y][x-1].setImage("Sprites/Cobble_Stone.png");
         mapa[y][x-1].setTexture();
         mapa[y][x-1].draw();
+        mapa[y][x-1].wall();
     }
     else if(x==1)
     {
         mapa[y][x+1].setImage("Sprites/Cobble_Stone.png");
         mapa[y][x+1].setTexture();
         mapa[y][x+1].draw();
+        mapa[y][x+1].wall();
     }
 }
 
@@ -145,7 +151,9 @@ void Mapa::createCage(int num)
 
     margem = 0.2*altura;
 
-    for (i = (altura-4); i > (altura - (margem+2)); i--)
+    cage[1] = (altura-4);
+    cage[0] = (altura - (margem+2));
+    for (i = cage[1]; (i > cage[0]); i--)
     {
         
         if(aux==0)
@@ -156,6 +164,9 @@ void Mapa::createCage(int num)
                 this->createWall(j,i);
                 this->createWall(aux,i);
             }
+
+            cage[2] = j+3;
+            cage[3] = aux -3;
 
             for(j-=1,aux+=1;j>1;j-=4,aux+=4)
             {
@@ -191,4 +202,31 @@ void Mapa::createCage(int num)
             this->createWall(aux+k,i);
         }
     }
+}
+
+void Mapa::insertOres()
+{
+    Ore* aux;
+    int margem = 0.2*altura;
+    for (int i = 0; i < altura; i++)
+    {
+        for (int j = 0; j < comprimento; j++)
+        {
+            if(!mapa[i][j].isWall() && !((i<cage[1] && i>cage[0]) && (j<cage[3] && j>cage[2])))
+            {
+                aux = new Ore();
+
+                aux->setCoord(j,i);
+                aux->setImage("Sprites/Diamond.png");
+                aux->setPoints();
+                aux->setTexture();
+                aux->draw();
+
+                mapa[i][j].setOre(aux);
+
+            }
+        }
+        
+    }
+    
 }

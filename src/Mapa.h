@@ -9,6 +9,8 @@ class Mapa
 
         int comprimento;
         int altura;
+        int cage[4];
+
         Block **mapa;
 
     public:
@@ -19,6 +21,7 @@ class Mapa
         void createWall(int x, int y);
         void createWalls();
         void createCage(int num);
+        void insertOres();
 };
 
 #endif

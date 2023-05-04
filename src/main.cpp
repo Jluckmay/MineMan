@@ -39,6 +39,7 @@ int main()
     mapa = new Mapa(32,32);
     mapa->createWalls();
     mapa->createCage(4);
+    mapa->insertOres();
 
     al_flip_display();
 

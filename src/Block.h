@@ -2,6 +2,7 @@
 #define BLOCK_H
 
 #include <allegro5/allegro.h>
+#include "Ore.h"
 
 class Block
 {
@@ -9,7 +10,9 @@ class Block
 
         ALLEGRO_BITMAP *textura;
         
+        Ore* ore;
         char image[100];
+        int parede;
         int x;
         int y;
 
@@ -17,7 +20,7 @@ class Block
 
         Block();
         Block(const Block &obj);
-        Block(const char *image, int x, int y);
+        Block(const char *image, int x, int y, int parede);
 
         ~Block();
 
@@ -30,6 +33,14 @@ class Block
         void setCoord(int x, int y);
 
         void draw();
+
+        void wall();
+
+        int isWall();
+
+        void setOre(Ore *aux);
+        
+        Ore* getOre();
 
         ALLEGRO_BITMAP* getTexture();
 };
