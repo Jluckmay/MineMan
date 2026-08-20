@@ -1,194 +1,307 @@
 #include "Mapa.h"
-#include <stdlib.h>
-
-Mapa::Mapa()
+#include <algorithm>
+#include <cstdio>
+#include <random>
+#include <allegro5/allegro_primitives.h>
+namespace
 {
-    altura = 0;
-    comprimento = 0;
-    mapa = NULL;
+    constexpr int TILE = 16;
 }
 
-Mapa::Mapa(int comp, int alt)
+Mapa::Mapa(int w, int h) : width_(w), height_(h), tiles_(w * h), pickups_(w * h),
+                           floor_(al_load_bitmap("Sprites/Stone_Block.bmp")), border_(al_load_bitmap("Sprites/Smooth_Stone.bmp")),
+                           wall_(al_load_bitmap("Sprites/Cobble_Stone.png")), blocks_(al_load_bitmap("Sprites/Blocks.png")),
+                           items_(al_load_bitmap("Sprites/Itens.png")), rng_(std::random_device{}())
 {
-    comprimento = comp;
-    altura = alt;
-
-    mapa = new Block*[alt];
-
-    for (int i = 0; i < alt; i++)
+    // As folhas possuem fundos sólidos usados como chroma key. Convertê-los
+    // uma vez na carga evita retângulos coloridos em volta dos sprites.
+    if (blocks_)
+        al_convert_mask_to_alpha(blocks_, al_map_rgb(163, 73, 164));
+    if (items_)
     {
-       mapa[i] = new Block[comp];
+        al_convert_mask_to_alpha(items_, al_map_rgb(112, 56, 97));
+        al_convert_mask_to_alpha(items_, al_map_rgb(182, 69, 166));
     }
-    
-    for (int i = 0; i < alt; i++)
-    {
-        for (int j = 0; j < comp; j++)
-        {
-            if(i == 0 || i == (alt-1))
-            {
-                mapa[i][j].setImage("Sprites/Smooth_Stone.bmp");
-            }
-            else if(j == 0 || j == (comp-1))
-            {
-                mapa[i][j].setImage("Sprites/Smooth_Stone.bmp");
-            }
-            else
-            {
-                mapa[i][j].setImage("Sprites/Stone_Block.bmp");
-            }
-            
-            mapa[i][j].setTexture();
-            mapa[i][j].setCoord(j,i);
-            mapa[i][j].draw();
-        }
-        
-    }
-    
+    if (!floor_ || !border_ || !wall_ || !blocks_ || !items_)
+        std::fprintf(stderr, "Erro ao carregar texturas. Execute na raiz do projeto.\n");
+    reset();
 }
-
 Mapa::~Mapa()
 {
-
-    for (int i = 0; i < altura; i++)
-    {
-        delete(mapa[i]);
-    }
-
-    delete mapa;
-    
+    if (floor_)
+        al_destroy_bitmap(floor_);
+    if (border_)
+        al_destroy_bitmap(border_);
+    if (wall_)
+        al_destroy_bitmap(wall_);
+    if (blocks_)
+        al_destroy_bitmap(blocks_);
+    if (items_)
+        al_destroy_bitmap(items_);
 }
-
-void Mapa::createWall(int x, int y)
+void Mapa::setTile(int x, int y, Tile t)
 {
-    mapa[y][x].setImage("Sprites/Cobble_Stone.png");
-    mapa[y][x].setTexture();
-    mapa[y][x].draw();
-
-    if(x==(comprimento-2))
-    {
-        mapa[y][x-1].setImage("Sprites/Cobble_Stone.png");
-        mapa[y][x-1].setTexture();
-        mapa[y][x-1].draw();
-    }
-    else if(x==1)
-    {
-        mapa[y][x+1].setImage("Sprites/Cobble_Stone.png");
-        mapa[y][x+1].setTexture();
-        mapa[y][x+1].draw();
-    }
+    if (x >= 0 && y >= 0 && x < width_ && y < height_)
+        tiles_[index(x, y)] = t;
 }
-
-void Mapa::createWalls()
+void Mapa::buildMaze()
 {
-    int j,k;
-    int aux;
-    int margemY, margemX;
-
-    margemY = 0.2*altura;
-    margemX = 0.2*comprimento;
-
-
-    for (int i = 1; i < (altura - (margemY+2)); i++)
+    // Cada rodada começa vazia, recebe uma borda fixa e depois um dos dez
+    // padrões de paredes. O lambda wall protege a área inicial e as bordas.
+    std::fill(tiles_.begin(), tiles_.end(), Tile::Floor);
+    std::fill(pickups_.begin(), pickups_.end(), Pickup::None);
+    for (int x = 0; x < width_; ++x)
     {
-       
-        if(i==3)
-        {
-            aux = comprimento-3;
-            for(j=2;aux>j;j+=(k+2), aux-=(k+2))
-            {
-                for(k=0;k<4;k++)
-                {
-                    this->createWall(j+k,i);
-                    this->createWall(aux-k,i);
-                }
-            }
-        }
-        else if (i%3==0)
-        {
-            if(i%2==0 && i!=(comprimento-2))
-            {
-                aux = comprimento-2;
-                for (j = 1, k =3; aux>=margemX; j+=k, aux-=k)
-                {
-
-                    this->createWall(j,i);
-                    this->createWall(aux,i);
-
-                }
-            }
-            else
-            {
-                aux = comprimento-3;
-                for(j=2;aux>j;j+=(k+1), aux-=(k+1))
-                {
-                    for(k=0;k<2;k++)
-                    {
-                        this->createWall(j+k,i);
-                        this->createWall(aux-k,i);
-                    }
-                }
-            }
-            
-        }
-        
-        
-        
+        setTile(x, 0, Tile::Border);
+        setTile(x, height_ - 1, Tile::Border);
     }
-    
+    for (int y = 0; y < height_; ++y)
+    {
+        setTile(0, y, Tile::Border);
+        setTile(width_ - 1, y, Tile::Border);
+    }
+    layout_ = std::uniform_int_distribution<int>(0, 9)(rng_);
+    auto wall = [&](int x, int y)
+    {if(x>1&&y>1&&x<width_-2&&y<height_-2)setTile(x,y,Tile::Wall); };
+    if (layout_ == 0)
+    { // Barras horizontais alternadas
+        for (int y = 4; y < height_ - 3; y += 4)
+            for (int x = 2; x < width_ - 2; ++x)
+                if (((y / 4) % 2 == 0) ? x >= 6 : x <= width_ - 7)
+                    wall(x, y);
+    }
+    else if (layout_ == 1)
+    { // Barras verticais alternadas
+        for (int x = 5; x < width_ - 3; x += 5)
+            for (int y = 2; y < height_ - 2; ++y)
+                if (((x / 5) % 2 == 0) ? y >= 7 : y <= height_ - 8)
+                    wall(x, y);
+    }
+    else if (layout_ == 2)
+    { // Cruz com quatro portais
+        for (int x = 3; x < width_ - 3; ++x)
+            if (x != 8 && x != 23)
+                wall(x, height_ / 2);
+        for (int y = 3; y < height_ - 3; ++y)
+            if (y != 8 && y != 23)
+                wall(width_ / 2, y);
+    }
+    else if (layout_ == 3)
+    { // Grade de salas abertas
+        for (int x = 8; x < width_ - 3; x += 8)
+            for (int y = 2; y < height_ - 2; ++y)
+                if (y % 7 != 3)
+                    wall(x, y);
+        for (int y = 8; y < height_ - 3; y += 8)
+            for (int x = 2; x < width_ - 2; ++x)
+                if (x % 7 != 3)
+                    wall(x, y);
+    }
+    else if (layout_ == 4)
+    { // Zigue-zague
+        for (int y = 5; y < height_ - 4; y += 5)
+            for (int x = 3; x < width_ - 3; ++x)
+                if ((y / 5) % 2 ? x < width_ - 8 : x > 7)
+                    wall(x, y);
+    }
+    else if (layout_ == 5)
+    { // Campo de pilares
+        for (int y = 5; y < height_ - 4; y += 5)
+            for (int x = 5; x < width_ - 4; x += 5)
+            {
+                wall(x, y);
+                wall(x + 1, y);
+                wall(x, y + 1);
+                wall(x + 1, y + 1);
+            }
+    }
+    else if (layout_ == 6)
+    { // Dois anéis com entradas opostas
+        for (int x = 5; x < width_ - 5; ++x)
+        {
+            if (x != 8)
+                wall(x, 5);
+            if (x != width_ - 9)
+                wall(x, height_ - 6);
+        }
+        for (int y = 5; y < height_ - 5; ++y)
+        {
+            if (y != height_ - 9)
+                wall(5, y);
+            if (y != 8)
+                wall(width_ - 6, y);
+        }
+        for (int x = 10; x < width_ - 10; ++x)
+        {
+            if (x != width_ / 2)
+                wall(x, 10);
+            if (x != width_ / 2)
+                wall(x, height_ - 11);
+        }
+    }
+    else if (layout_ == 7)
+    { // Diagonais interrompidas
+        for (int i = 4; i < width_ - 4; ++i)
+        {
+            if (i % 6 != 0)
+                wall(i, i);
+            if (i % 7 != 0)
+                wall(width_ - 1 - i, i);
+        }
+    }
+    else if (layout_ == 8)
+    { // Pequenas barras alternadas
+        for (int y = 4; y < height_ - 3; y += 4)
+            for (int x = 3 + (y % 8); x < width_ - 3; x += 8)
+            {
+                wall(x, y);
+                wall(x + 1, y);
+                wall(x + 2, y);
+            }
+    }
+    else
+    { // Corredores em pente
+        for (int x = 5; x < width_ - 4; x += 5)
+            for (int y = 4; y < height_ - 4; ++y)
+                if ((x / 5) % 2 ? y > 8 : y < height_ - 9)
+                    wall(x, y);
+    }
+    // Minérios são uma decoração transitável. Primeiro sorteamos as casas,
+    // depois quantos e quais tipos estarão disponíveis nesta rodada.
+    std::vector<int> floorCells;
+    for (int y = 1; y < height_ - 1; ++y)
+        for (int x = 1; x < width_ - 1; ++x)
+            if (tiles_[index(x, y)] == Tile::Floor)
+                floorCells.push_back(index(x, y));
+    std::shuffle(floorCells.begin(), floorCells.end(), rng_);
+    std::uniform_int_distribution<int> amountRoll(60, 110);
+    const int oreCount = std::min(amountRoll(rng_), (int)floorCells.size());
+    std::vector<Tile> orePool = {Tile::CoalOre, Tile::IronOre, Tile::GoldOre, Tile::DiamondOre, Tile::EmeraldOre};
+    std::shuffle(orePool.begin(), orePool.end(), rng_);
+    std::uniform_int_distribution<int> kindCountRoll(2, (int)orePool.size());
+    const int activeKinds = kindCountRoll(rng_);
+    std::uniform_int_distribution<int> oreType(0, activeKinds - 1);
+    for (int i = 0; i < oreCount; ++i)
+        tiles_[floorCells[i]] = orePool[oreType(rng_)];
 }
-
-void Mapa::createCage(int num)
+void Mapa::placePickups()
 {
-    int i,j;
-    int aux=0;
-    int margem;
-
-    margem = 0.2*altura;
-
-    for (i = (altura-4); i > (altura - (margem+2)); i--)
+    // A região próxima ao spawn fica livre. Embaralhar tanto as casas quanto o
+    // conteúdo torna a distribuição independente do layout escolhido.
+    std::vector<int> free;
+    for (int y = 2; y < height_ - 2; ++y)
+        for (int x = 2; x < width_ - 2; ++x)
+            if (walkable(x, y) && !(x < 5 && y < 5))
+                free.push_back(index(x, y));
+    std::shuffle(free.begin(), free.end(), rng_);
+    std::vector<Pickup> content = {Pickup::Emerald, Pickup::Diamond, Pickup::Emerald, Pickup::Diamond,
+                                   Pickup::Emerald, Pickup::Diamond, Pickup::Emerald, Pickup::Diamond, Pickup::Emerald, Pickup::Diamond,
+                                   Pickup::SuspiciousStew, Pickup::SuspiciousStew,
+                                   Pickup::ArmorGold, Pickup::ArmorIron, Pickup::ArmorDiamond, Pickup::SwordGold, Pickup::SwordIron, Pickup::SwordDiamond};
+    std::shuffle(content.begin(), content.end(), rng_);
+    for (int i = 0; i < (int)content.size() && i < (int)free.size(); ++i)
+        pickups_[free[i]] = content[i];
+}
+void Mapa::reset()
+{
+    buildMaze();
+    placePickups();
+}
+bool Mapa::walkable(int x, int y) const
+{
+    if (x < 0 || y < 0 || x >= width_ || y >= height_)
+        return false;
+    Tile t = tiles_[index(x, y)];
+    return t != Tile::Border && t != Tile::Wall;
+}
+Mapa::Pickup Mapa::collect(int x, int y)
+{
+    if (x < 0 || y < 0 || x >= width_ || y >= height_)
+        return Pickup::None;
+    // Retirar o item da camada garante que a mesma coleta ocorra uma única vez.
+    Pickup p = pickups_[index(x, y)];
+    pickups_[index(x, y)] = Pickup::None;
+    return p;
+}
+int Mapa::gemsRemaining() const
+{
+    return (int)std::count_if(pickups_.begin(), pickups_.end(), [](Pickup p)
+                              { return p == Pickup::Emerald || p == Pickup::Diamond; });
+}
+void Mapa::drawPickupIcon(Pickup p, int x, int y, int size, int flags) const
+{
+    // Atlas personalizado: celulas de 16 px separadas por 2 px nesta folha.
+    // As coordenadas abaixo foram verificadas diretamente no arquivo do projeto.
+    int col = 0, row = 0;
+    switch (p)
     {
-        
-        if(aux==0)
+    case Pickup::Emerald:
+        col = 13;
+        row = 8;
+        break;
+    case Pickup::Diamond:
+        col = 20;
+        row = 7;
+        break;
+    case Pickup::SuspiciousStew:
+        col = 12;
+        row = 0;
+        break;
+    case Pickup::ArmorGold:
+        col = 3;
+        row = 10;
+        break;
+    case Pickup::ArmorIron:
+        col = 2;
+        row = 11;
+        break;
+    case Pickup::ArmorDiamond:
+        col = 0;
+        row = 8;
+        break;
+    case Pickup::SwordGold:
+        col = 9;
+        row = 10;
+        break;
+    case Pickup::SwordIron:
+        col = 10;
+        row = 11;
+        break;
+    case Pickup::SwordDiamond:
+        col = 8;
+        row = 8;
+        break;
+    default:
+        return;
+    }
+    al_draw_scaled_bitmap(items_, col * 18 + 1, row * 18 + 1, 16, 16, x, y, size, size, flags);
+}
+void Mapa::draw() const
+{
+    // Ordem de desenho por célula: piso/parede, veio de minério e item. Assim o
+    // item sempre fica visível acima do cenário.
+    for (int y = 0; y < height_; ++y)
+        for (int x = 0; x < width_; ++x)
         {
-            aux = comprimento/2;
-            for ( j = aux-1; (aux-j) < (num+6); j--, aux++)
+            Tile t = tiles_[index(x, y)];
+            ALLEGRO_BITMAP *b = t == Tile::Border ? border_ : (t == Tile::Wall ? wall_ : floor_);
+            if (b)
+                al_draw_scaled_bitmap(b, 0, 0, al_get_bitmap_width(b), al_get_bitmap_height(b), x * TILE, y * TILE, TILE, TILE, 0);
+            if (t >= Tile::CoalOre)
             {
-                this->createWall(j,i);
-                this->createWall(aux,i);
-            }
-
-            for(j-=1,aux+=1;j>1;j-=4,aux+=4)
-            {
-                for(int k=0;k<3;k++)
+                if (t == Tile::CoalOre && blocks_)
+                    al_draw_bitmap_region(blocks_, 59, 2, 16, 16, x * TILE, y * TILE, 0);
+                else
                 {
-                    this->createWall(j-k,i);
-                    this->createWall(aux+k,i);
+                    ALLEGRO_COLOR ore = t == Tile::IronOre ? al_map_rgb(215, 175, 140) : (t == Tile::GoldOre ? al_map_rgb(255, 210, 35) : (t == Tile::DiamondOre ? al_map_rgb(45, 225, 230) : al_map_rgb(40, 205, 80)));
+                    const int px = x * TILE, py = y * TILE;
+                    al_draw_filled_rectangle(px + 3, py + 3, px + 5, py + 5, ore);
+                    al_draw_filled_rectangle(px + 10, py + 2, px + 12, py + 4, ore);
+                    al_draw_filled_rectangle(px + 7, py + 8, px + 9, py + 10, ore);
+                    al_draw_filled_rectangle(px + 2, py + 12, px + 4, py + 14, ore);
+                    al_draw_filled_rectangle(px + 12, py + 11, px + 14, py + 13, ore);
                 }
             }
+            drawPickupIcon(pickups_[index(x, y)], x * TILE, y * TILE);
         }
-        else
-        {
-            aux = comprimento/2;
-            this->createWall(aux+num/2,i);
-            this->createWall(aux-(num/2+1),i);
-        }
-        
-        
-    }
-    
-    aux = comprimento/2+1;
-    for ( j = aux-3; (aux-j) < (num+3); j--, aux++)
-    {
-        this->createWall(j,i+1);
-        this->createWall(aux,i+1);
-    }
-
-    for(j-=1,aux+=1;j>1;j-=4,aux+=4)
-    {
-        for(int k=0;k<3;k++)
-        {
-            this->createWall(j-k,i);
-            this->createWall(aux+k,i);
-        }
-    }
 }

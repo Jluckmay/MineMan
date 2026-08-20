@@ -1,14 +1,16 @@
-all: MineMan
-
-MineMan: main.o Mapa.o Block.o
-	g++ -o MineMan main.o Mapa.o Block.o -lallegro -lallegro_image
-	rm -rf *.o
-main.o: src/main.cpp src/Mapa.h src/Block.h
-	g++ -o main.o src/main.cpp -c
-Mapa.o: src/Mapa.cpp src/Mapa.h
-	g++ -o Mapa.o src/Mapa.cpp -c
-Block.o: src/Block.cpp src/Block.h
-	g++ -o Block.o src/Block.cpp -c
-
+CXX := g++
+CXXFLAGS := -std=c++17 -Wall -Wextra -pedantic -O2
+LDLIBS := -lallegro -lallegro_image -lallegro_font -lallegro_primitives
+TARGET := MineMan
+SOURCES := src/main.cpp src/Game.cpp src/Mapa.cpp
+OBJECTS := $(SOURCES:.cpp=.o)
+.PHONY: all run clean
+all: $(TARGET)
+$(TARGET): $(OBJECTS)
+	$(CXX) $(OBJECTS) -o $@ $(LDLIBS)
+src/%.o: src/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+run: $(TARGET)
+	./$(TARGET)
 clean:
-	rm -rf *.o *~ MineMan
+	rm -f $(OBJECTS) $(TARGET)
