@@ -9,6 +9,9 @@
 namespace
 {
     constexpr int TILE = 16;
+    constexpr int ITEM_SPRITE_SIZE = 16;
+    constexpr int ITEM_SPRITE_STRIDE = 18;
+    constexpr int ITEM_SPRITE_MARGIN = 1;
 }
 
 // Inicializa o mapa, carrega as texturas e gera a primeira rodada.
@@ -254,51 +257,55 @@ int Mapa::gemsRemaining() const
 // Recorta e desenha no mapa o sprite correspondente a um item.
 void Mapa::drawPickupIcon(Pickup p, int x, int y, int size, int flags) const
 {
-    // Atlas personalizado: celulas de 16 px separadas por 2 px nesta folha.
-    // As coordenadas abaixo foram verificadas diretamente no arquivo do projeto.
-    int col = 0, row = 0;
+    // O atlas organiza sprites de 16 px separados por 2 px, com margem de 1 px.
+    int col = 0;
+    int row = 0;
     switch (p)
     {
     case Pickup::Emerald:
-        col = 13;
-        row = 8;
+        col = 12;
+        row = 7;
         break;
     case Pickup::Diamond:
         col = 20;
-        row = 7;
+        row = 6;
         break;
     case Pickup::SuspiciousStew:
-        col = 12;
-        row = 0;
+        col = 6;
+        row = 17;
         break;
     case Pickup::ArmorGold:
         col = 3;
-        row = 10;
+        row = 9;
         break;
     case Pickup::ArmorIron:
         col = 2;
-        row = 11;
+        row = 10;
         break;
     case Pickup::ArmorDiamond:
         col = 0;
-        row = 8;
+        row = 7;
         break;
     case Pickup::SwordGold:
-        col = 9;
-        row = 10;
+        col = 10;
+        row = 9;
         break;
     case Pickup::SwordIron:
-        col = 10;
-        row = 11;
+        col = 12;
+        row = 10;
         break;
     case Pickup::SwordDiamond:
-        col = 8;
-        row = 8;
+        col = 7;
+        row = 7;
         break;
     default:
         return;
     }
-    al_draw_scaled_bitmap(items_, col * 18 + 1, row * 18 + 1, 16, 16, x, y, size, size, flags);
+
+    const int sourceX = col * ITEM_SPRITE_STRIDE + ITEM_SPRITE_MARGIN;
+    const int sourceY = row * ITEM_SPRITE_STRIDE + ITEM_SPRITE_MARGIN;
+    al_draw_scaled_bitmap(items_, sourceX, sourceY, ITEM_SPRITE_SIZE, ITEM_SPRITE_SIZE,
+                          x, y, size, size, flags);
 }
 
 // Renderiza cada casa do mapa e o item que estiver sobre ela.
