@@ -121,9 +121,9 @@ da versão em C++.
 ### Ícones da aplicação
 
 O personagem principal é usado como favicon da versão web e como ícone dos
-pacotes nativos. No Windows, o Makefile incorpora `Icons/MineMan.ico`
-automaticamente ao `MineMan.exe`. Para pacotes Linux, use
-`Icons/MineMan.png` junto de `packaging/linux/MineMan.desktop`.
+pacotes nativos. No Windows, o Makefile gera temporariamente um ícone `.ico`
+a partir de `Icons/MineMan.png` e o incorpora ao `MineMan.exe`. Para pacotes
+Linux, use o mesmo PNG junto de `packaging/linux/MineMan.desktop`.
 
 ### Executáveis gerados
 
@@ -291,9 +291,9 @@ C++ version.
 ### Application icons
 
 The main character is used as the web favicon and native package icon. On
-Windows, the Makefile automatically embeds `Icons/MineMan.ico` into
-`MineMan.exe`. For Linux packages, use `Icons/MineMan.png` together with
-`packaging/linux/MineMan.desktop`.
+Windows, the Makefile temporarily generates an `.ico` file from
+`Icons/MineMan.png` and embeds it into `MineMan.exe`. For Linux packages, use
+the same PNG together with `packaging/linux/MineMan.desktop`.
 
 ### Generated executables
 

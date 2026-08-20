@@ -2,5 +2,6 @@
 /MineMan
 /MineMan.exe
 /dist/
+/build/
 /src/*.d
 /src/*.o
