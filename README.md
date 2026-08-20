@@ -8,6 +8,10 @@ MineMan é um jogo de exploração de labirintos inspirado no universo de
 Minecraft. Desenvolvido em C++17 com Allegro 5, o jogo combina mapas aleatórios,
 coleta de gemas, equipamentos temporários e inimigos que perseguem o jogador.
 
+O projeto foi desenvolvido originalmente como requisito da disciplina de
+Programação Orientada a Objetos da Universidade Federal de Viçosa (UFV),
+Campus Rio Paranaíba, e aprimorado posteriormente.
+
 ### Objetivo
 
 Explore o mapa e colete todas as esmeraldas e diamantes antes de perder suas
@@ -105,15 +109,26 @@ MineMan/
 |   |-- Game.*      # Ciclo principal, regras, inimigos e interface
 |   |-- Mapa.*      # Geração, itens e renderização do mapa
 |   `-- main.cpp    # Ponto de entrada
+|-- ASSETS.md       # Origem e condições dos recursos visuais
 |-- Makefile        # Automação da compilação
-|-- LICENSE         # Licença GNU GPLv3
+|-- LICENSE         # Licença MIT do código-fonte
 `-- README.md
 ```
 
 ### Licença
 
-O código-fonte é distribuído sob a GNU General Public License v3.0 ou
-posterior. Consulte [LICENSE](LICENSE) para conhecer os termos completos.
+O código-fonte e os arquivos de compilação são distribuídos sob a licença
+MIT. Consulte [LICENSE](LICENSE) para conhecer os termos completos. Essa
+licença não abrange os recursos de terceiros presentes em `Sprites/`.
+
+### Créditos dos sprites
+
+Os sprites utilizados neste projeto foram obtidos no
+[The Spriters Resource](https://www.spriters-resource.com/) e disponibilizados
+na plataforma pelos usuários **Striker212** e **DogToon64**. O crédito pelo
+upload e pela extração dos recursos pertence a esses colaboradores; os direitos
+sobre os elementos originais permanecem com seus respectivos titulares.
+Consulte [ASSETS.md](ASSETS.md) para conhecer o escopo e as condições de uso.
 
 Os nomes e recursos visuais associados a Minecraft pertencem aos respectivos
 detentores de direitos. Este é um projeto independente, sem afiliação ou
@@ -126,6 +141,10 @@ endosso da Mojang Studios ou da Microsoft.
 MineMan is a maze exploration game inspired by the Minecraft universe. Built
 with C++17 and Allegro 5, it combines randomized maps, gem collecting,
 temporary equipment, and enemies that chase the player.
+
+The project was originally developed as a requirement for the Object-Oriented
+Programming course at the Federal University of Viçosa (UFV), Rio Paranaíba
+Campus, and was subsequently improved.
 
 ### Goal
 
@@ -224,15 +243,26 @@ MineMan/
 |   |-- Game.*      # Main loop, rules, enemies, and interface
 |   |-- Mapa.*      # Map generation, items, and rendering
 |   `-- main.cpp    # Entry point
+|-- ASSETS.md       # Visual asset sources and usage conditions
 |-- Makefile        # Build automation
-|-- LICENSE         # GNU GPLv3 license
+|-- LICENSE         # MIT License for the source code
 `-- README.md
 ```
 
 ### License
 
-The source code is distributed under the GNU General Public License v3.0 or
-later. See [LICENSE](LICENSE) for the complete terms.
+The source code and build files are distributed under the MIT License. See
+[LICENSE](LICENSE) for the complete terms. This license does not cover the
+third-party resources under `Sprites/`.
+
+### Sprite credits
+
+The sprites used in this project were obtained from
+[The Spriters Resource](https://www.spriters-resource.com/) and uploaded to the
+platform by **Striker212** and **DogToon64**. Credit for uploading and extracting
+the assets belongs to these contributors; rights to the original material
+remain with their respective owners.
+See [ASSETS.md](ASSETS.md) for the scope and usage conditions.
 
 Minecraft-related names and visual assets belong to their respective rights
 holders. This is an independent project and is not affiliated with or endorsed

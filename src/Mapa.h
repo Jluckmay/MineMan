@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #ifndef MAPA_H
 #define MAPA_H
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #ifndef GAME_H
 #define GAME_H
 

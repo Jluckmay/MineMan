@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 CXX := g++
 CPPFLAGS := -MMD -MP
 CXXFLAGS := -std=c++17 -Wall -Wextra -pedantic -O2

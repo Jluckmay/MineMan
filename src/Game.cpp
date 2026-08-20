@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "Game.h"
 
 #include <allegro5/allegro_image.h>

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "Mapa.h"
 
 #include <allegro5/allegro_primitives.h>
