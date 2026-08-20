@@ -259,46 +259,55 @@ int Mapa::gemsRemaining() const
 // Recorta e desenha no mapa o sprite correspondente a um item.
 void Mapa::drawPickupIcon(Pickup p, int x, int y, int size, int flags) const
 {
-    // O atlas organiza sprites de 16 px separados por 2 px, com margem de 1 px.
+    // O atlas possui células de 18x18 px: sprites de 16x16 px com margem de 1 px.
     int col = 0;
     int row = 0;
     switch (p)
     {
     case Pickup::Emerald:
+        // Pixel inicial: (217, 145).
         col = 12;
-        row = 7;
+        row = 8;
         break;
     case Pickup::Diamond:
-        col = 20;
-        row = 6;
+        // Pixel inicial: (343, 127).
+        col = 19;
+        row = 7;
         break;
     case Pickup::SuspiciousStew:
-        col = 6;
+        // Pixel inicial: (145, 307).
+        col = 8;
         row = 17;
         break;
     case Pickup::ArmorGold:
+        // Pixel inicial: (55, 181).
         col = 3;
-        row = 9;
+        row = 10;
         break;
     case Pickup::ArmorIron:
+        // Pixel inicial: (37, 199).
         col = 2;
-        row = 10;
+        row = 11;
         break;
     case Pickup::ArmorDiamond:
+        // Pixel inicial: (1, 145).
         col = 0;
-        row = 7;
+        row = 8;
         break;
     case Pickup::SwordGold:
+        // Pixel inicial: (181, 181).
         col = 10;
-        row = 9;
-        break;
-    case Pickup::SwordIron:
-        col = 12;
         row = 10;
         break;
+    case Pickup::SwordIron:
+        // Pixel inicial: (217, 199).
+        col = 12;
+        row = 11;
+        break;
     case Pickup::SwordDiamond:
+        // Pixel inicial: (127, 145).
         col = 7;
-        row = 7;
+        row = 8;
         break;
     default:
         return;

@@ -1,0 +1,830 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="MineMan - jogo de labirinto inspirado em Minecraft">
+    <link rel="icon" type="image/png" href="Icons/MineMan.png">
+    <link rel="shortcut icon" href="Icons/MineMan.png">
+    <link rel="apple-touch-icon" href="Icons/MineMan.png">
+    <title>MineMan - Gem Hunt</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #08080c;
+        }
+
+        body {
+            display: grid;
+            place-items: center;
+            font-family: monospace;
+        }
+
+        canvas {
+            display: block;
+            width: min(100vw, 100vh);
+            height: min(100vw, 100vh);
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game" width="512" height="512" tabindex="0"
+            aria-label="MineMan. Use as setas ou WASD para jogar."></canvas>
+
+    <script>
+        "use strict";
+
+        const TILE_SIZE = 16;
+        const MAP_SIZE = 32;
+        const SCREEN_SIZE = TILE_SIZE * MAP_SIZE;
+        const FPS = 60;
+        const EQUIPMENT_DURATION = 60 * FPS;
+        const EFFECT_DURATION = 15 * FPS;
+        const RESPAWN_DURATION = 5 * FPS;
+        const ITEM_SPRITE_SIZE = 16;
+        const ITEM_SPRITE_STRIDE = 18;
+        const ITEM_SPRITE_MARGIN = 1;
+
+        const Tile = Object.freeze({
+            FLOOR: 0,
+            BORDER: 1,
+            WALL: 2,
+            COAL_ORE: 3,
+            IRON_ORE: 4,
+            GOLD_ORE: 5,
+            DIAMOND_ORE: 6,
+            EMERALD_ORE: 7
+        });
+
+        const Pickup = Object.freeze({
+            NONE: 0,
+            EMERALD: 1,
+            DIAMOND: 2,
+            SUSPICIOUS_STEW: 3,
+            ARMOR_GOLD: 4,
+            ARMOR_IRON: 5,
+            ARMOR_DIAMOND: 6,
+            SWORD_GOLD: 7,
+            SWORD_IRON: 8,
+            SWORD_DIAMOND: 9
+        });
+
+        const State = Object.freeze({ PLAYING: 0, WON: 1, LOST: 2 });
+        const Effect = Object.freeze({ NONE: 0, SPEED: 1, INVISIBLE: 2, IMMUNE: 3 });
+
+        const ITEM_COORDINATES = Object.freeze({
+            [Pickup.EMERALD]: [12, 8],
+            [Pickup.DIAMOND]: [19, 7],
+            [Pickup.SUSPICIOUS_STEW]: [8, 17],
+            [Pickup.ARMOR_GOLD]: [3, 10],
+            [Pickup.ARMOR_IRON]: [2, 11],
+            [Pickup.ARMOR_DIAMOND]: [0, 8],
+            [Pickup.SWORD_GOLD]: [10, 10],
+            [Pickup.SWORD_IRON]: [12, 11],
+            [Pickup.SWORD_DIAMOND]: [7, 8]
+        });
+
+        // Retorna um inteiro aleatório dentro do intervalo inclusivo.
+        function randomInt(minimum, maximum) {
+            return minimum + Math.floor(Math.random() * (maximum - minimum + 1));
+        }
+
+        // Embaralha um vetor sem criar uma cópia adicional.
+        function shuffle(values) {
+            for (let index = values.length - 1; index > 0; --index) {
+                const target = randomInt(0, index);
+                [values[index], values[target]] = [values[target], values[index]];
+            }
+            return values;
+        }
+
+        // Carrega uma imagem usada pelo jogo.
+        function loadImage(source) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = () => reject(new Error(`Não foi possível carregar ${source}`));
+                image.src = source;
+            });
+        }
+
+        // Converte cores de chroma key em transparência.
+        function removeMask(image, colors) {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            const context = canvas.getContext("2d", { willReadFrequently: true });
+            context.drawImage(image, 0, 0);
+            const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+            const masks = new Set(colors.map(color => color.join(",")));
+            for (let offset = 0; offset < pixels.data.length; offset += 4) {
+                const key = `${pixels.data[offset]},${pixels.data[offset + 1]},${pixels.data[offset + 2]}`;
+                if (masks.has(key))
+                    pixels.data[offset + 3] = 0;
+            }
+            context.putImageData(pixels, 0, 0);
+            return canvas;
+        }
+
+        // Representa o cenário, seus terrenos e itens coletáveis.
+        class GameMap {
+            // Cria as camadas do mapa e gera a primeira rodada.
+            constructor(width, height, images) {
+                this.width = width;
+                this.height = height;
+                this.images = images;
+                this.tiles = new Array(width * height).fill(Tile.FLOOR);
+                this.pickups = new Array(width * height).fill(Pickup.NONE);
+                this.layout = 0;
+                this.reset();
+            }
+
+            // Converte uma coordenada bidimensional em índice linear.
+            index(x, y) {
+                return y * this.width + x;
+            }
+
+            // Define uma casa quando a coordenada pertence ao mapa.
+            setTile(x, y, tile) {
+                if (x >= 0 && y >= 0 && x < this.width && y < this.height)
+                    this.tiles[this.index(x, y)] = tile;
+            }
+
+            // Informa se uma casa pode ser atravessada.
+            walkable(x, y) {
+                if (x < 0 || y < 0 || x >= this.width || y >= this.height)
+                    return false;
+                const tile = this.tiles[this.index(x, y)];
+                return tile !== Tile.BORDER && tile !== Tile.WALL;
+            }
+
+            // Recolhe e remove o item presente em uma casa.
+            collect(x, y) {
+                if (x < 0 || y < 0 || x >= this.width || y >= this.height)
+                    return Pickup.NONE;
+                const position = this.index(x, y);
+                const pickup = this.pickups[position];
+                this.pickups[position] = Pickup.NONE;
+                return pickup;
+            }
+
+            // Conta as gemas ainda disponíveis no mapa.
+            gemsRemaining() {
+                return this.pickups.reduce((total, pickup) =>
+                    total + (pickup === Pickup.EMERALD || pickup === Pickup.DIAMOND ? 1 : 0), 0);
+            }
+
+            // Gera novamente o labirinto e seus itens.
+            reset() {
+                this.buildMaze();
+                this.placePickups();
+            }
+
+            // Constrói um dos dez layouts e distribui os minérios.
+            buildMaze() {
+                this.tiles.fill(Tile.FLOOR);
+                this.pickups.fill(Pickup.NONE);
+
+                for (let x = 0; x < this.width; ++x) {
+                    this.setTile(x, 0, Tile.BORDER);
+                    this.setTile(x, this.height - 1, Tile.BORDER);
+                }
+                for (let y = 0; y < this.height; ++y) {
+                    this.setTile(0, y, Tile.BORDER);
+                    this.setTile(this.width - 1, y, Tile.BORDER);
+                }
+
+                this.layout = randomInt(0, 9);
+                const wall = (x, y) => {
+                    if (x > 1 && y > 1 && x < this.width - 2 && y < this.height - 2)
+                        this.setTile(x, y, Tile.WALL);
+                };
+
+                if (this.layout === 0) {
+                    for (let y = 4; y < this.height - 3; y += 4)
+                        for (let x = 2; x < this.width - 2; ++x)
+                            if ((Math.floor(y / 4) % 2 === 0) ? x >= 6 : x <= this.width - 7)
+                                wall(x, y);
+                } else if (this.layout === 1) {
+                    for (let x = 5; x < this.width - 3; x += 5)
+                        for (let y = 2; y < this.height - 2; ++y)
+                            if ((Math.floor(x / 5) % 2 === 0) ? y >= 7 : y <= this.height - 8)
+                                wall(x, y);
+                } else if (this.layout === 2) {
+                    for (let x = 3; x < this.width - 3; ++x)
+                        if (x !== 8 && x !== 23)
+                            wall(x, Math.floor(this.height / 2));
+                    for (let y = 3; y < this.height - 3; ++y)
+                        if (y !== 8 && y !== 23)
+                            wall(Math.floor(this.width / 2), y);
+                } else if (this.layout === 3) {
+                    for (let x = 8; x < this.width - 3; x += 8)
+                        for (let y = 2; y < this.height - 2; ++y)
+                            if (y % 7 !== 3)
+                                wall(x, y);
+                    for (let y = 8; y < this.height - 3; y += 8)
+                        for (let x = 2; x < this.width - 2; ++x)
+                            if (x % 7 !== 3)
+                                wall(x, y);
+                } else if (this.layout === 4) {
+                    for (let y = 5; y < this.height - 4; y += 5)
+                        for (let x = 3; x < this.width - 3; ++x)
+                            if ((Math.floor(y / 5) % 2) ? x < this.width - 8 : x > 7)
+                                wall(x, y);
+                } else if (this.layout === 5) {
+                    for (let y = 5; y < this.height - 4; y += 5)
+                        for (let x = 5; x < this.width - 4; x += 5) {
+                            wall(x, y);
+                            wall(x + 1, y);
+                            wall(x, y + 1);
+                            wall(x + 1, y + 1);
+                        }
+                } else if (this.layout === 6) {
+                    for (let x = 5; x < this.width - 5; ++x) {
+                        if (x !== 8)
+                            wall(x, 5);
+                        if (x !== this.width - 9)
+                            wall(x, this.height - 6);
+                    }
+                    for (let y = 5; y < this.height - 5; ++y) {
+                        if (y !== this.height - 9)
+                            wall(5, y);
+                        if (y !== 8)
+                            wall(this.width - 6, y);
+                    }
+                    for (let x = 10; x < this.width - 10; ++x) {
+                        if (x !== Math.floor(this.width / 2))
+                            wall(x, 10);
+                        if (x !== Math.floor(this.width / 2))
+                            wall(x, this.height - 11);
+                    }
+                } else if (this.layout === 7) {
+                    for (let index = 4; index < this.width - 4; ++index) {
+                        if (index % 6 !== 0)
+                            wall(index, index);
+                        if (index % 7 !== 0)
+                            wall(this.width - 1 - index, index);
+                    }
+                } else if (this.layout === 8) {
+                    for (let y = 4; y < this.height - 3; y += 4)
+                        for (let x = 3 + (y % 8); x < this.width - 3; x += 8) {
+                            wall(x, y);
+                            wall(x + 1, y);
+                            wall(x + 2, y);
+                        }
+                } else {
+                    for (let x = 5; x < this.width - 4; x += 5)
+                        for (let y = 4; y < this.height - 4; ++y)
+                            if ((Math.floor(x / 5) % 2) ? y > 8 : y < this.height - 9)
+                                wall(x, y);
+                }
+
+                const floorCells = [];
+                for (let y = 1; y < this.height - 1; ++y)
+                    for (let x = 1; x < this.width - 1; ++x)
+                        if (this.tiles[this.index(x, y)] === Tile.FLOOR)
+                            floorCells.push(this.index(x, y));
+
+                shuffle(floorCells);
+                const oreCount = Math.min(randomInt(60, 110), floorCells.length);
+                const orePool = shuffle([
+                    Tile.COAL_ORE,
+                    Tile.IRON_ORE,
+                    Tile.GOLD_ORE,
+                    Tile.DIAMOND_ORE,
+                    Tile.EMERALD_ORE
+                ]);
+                const activeKinds = randomInt(2, orePool.length);
+                for (let index = 0; index < oreCount; ++index)
+                    this.tiles[floorCells[index]] = orePool[randomInt(0, activeKinds - 1)];
+            }
+
+            // Distribui os itens coletáveis pelas casas livres.
+            placePickups() {
+                const freeCells = [];
+                for (let y = 2; y < this.height - 2; ++y)
+                    for (let x = 2; x < this.width - 2; ++x)
+                        if (this.walkable(x, y) && !(x < 5 && y < 5))
+                            freeCells.push(this.index(x, y));
+
+                shuffle(freeCells);
+                const content = shuffle([
+                    Pickup.EMERALD, Pickup.DIAMOND, Pickup.EMERALD, Pickup.DIAMOND,
+                    Pickup.EMERALD, Pickup.DIAMOND, Pickup.EMERALD, Pickup.DIAMOND,
+                    Pickup.EMERALD, Pickup.DIAMOND,
+                    Pickup.SUSPICIOUS_STEW, Pickup.SUSPICIOUS_STEW,
+                    Pickup.ARMOR_GOLD, Pickup.ARMOR_IRON, Pickup.ARMOR_DIAMOND,
+                    Pickup.SWORD_GOLD, Pickup.SWORD_IRON, Pickup.SWORD_DIAMOND
+                ]);
+                for (let index = 0; index < content.length && index < freeCells.length; ++index)
+                    this.pickups[freeCells[index]] = content[index];
+            }
+
+            // Desenha o ícone recortado de um item.
+            drawPickupIcon(context, pickup, x, y, size = 16, flip = false) {
+                const coordinates = ITEM_COORDINATES[pickup];
+                if (!coordinates)
+                    return;
+                const [column, row] = coordinates;
+                const sourceX = column * ITEM_SPRITE_STRIDE + ITEM_SPRITE_MARGIN;
+                const sourceY = row * ITEM_SPRITE_STRIDE + ITEM_SPRITE_MARGIN;
+
+                context.save();
+                if (flip) {
+                    context.translate(x + size, y);
+                    context.scale(-1, 1);
+                    x = 0;
+                    y = 0;
+                }
+                context.drawImage(this.images.items, sourceX, sourceY,
+                    ITEM_SPRITE_SIZE, ITEM_SPRITE_SIZE, x, y, size, size);
+                context.restore();
+            }
+
+            // Renderiza terreno, minérios e itens.
+            draw(context) {
+                for (let y = 0; y < this.height; ++y) {
+                    for (let x = 0; x < this.width; ++x) {
+                        const tile = this.tiles[this.index(x, y)];
+                        const bitmap = tile === Tile.BORDER ? this.images.border
+                            : (tile === Tile.WALL ? this.images.wall : this.images.floor);
+                        context.drawImage(bitmap, x * TILE_SIZE, y * TILE_SIZE,
+                            TILE_SIZE, TILE_SIZE);
+
+                        if (tile >= Tile.COAL_ORE) {
+                            if (tile === Tile.COAL_ORE) {
+                                context.drawImage(this.images.blocks, 59, 2, 16, 16,
+                                    x * TILE_SIZE, y * TILE_SIZE, 16, 16);
+                            } else {
+                                const colors = {
+                                    [Tile.IRON_ORE]: "rgb(215, 175, 140)",
+                                    [Tile.GOLD_ORE]: "rgb(255, 210, 35)",
+                                    [Tile.DIAMOND_ORE]: "rgb(45, 225, 230)",
+                                    [Tile.EMERALD_ORE]: "rgb(40, 205, 80)"
+                                };
+                                context.fillStyle = colors[tile];
+                                const pixelX = x * TILE_SIZE;
+                                const pixelY = y * TILE_SIZE;
+                                context.fillRect(pixelX + 3, pixelY + 3, 3, 3);
+                                context.fillRect(pixelX + 10, pixelY + 2, 3, 3);
+                                context.fillRect(pixelX + 7, pixelY + 8, 3, 3);
+                                context.fillRect(pixelX + 2, pixelY + 12, 3, 3);
+                                context.fillRect(pixelX + 12, pixelY + 11, 3, 3);
+                            }
+                        }
+                        this.drawPickupIcon(context, this.pickups[this.index(x, y)],
+                            x * TILE_SIZE, y * TILE_SIZE);
+                    }
+                }
+            }
+        }
+
+        // Coordena as regras, a atualização e a renderização do jogo.
+        class Game {
+            // Prepara o estado inicial e conecta os controles.
+            constructor(canvas, images) {
+                this.canvas = canvas;
+                this.context = canvas.getContext("2d");
+                this.context.imageSmoothingEnabled = false;
+                this.images = images;
+                this.map = new GameMap(MAP_SIZE, MAP_SIZE, images);
+                this.running = true;
+                this.lastTime = performance.now();
+                this.accumulator = 0;
+                this.bindControls();
+                this.resetRound();
+            }
+
+            // Cria o estado inicial do jogador.
+            createPlayer() {
+                return { x: 2, y: 2, facingLeft: false };
+            }
+
+            // Cria um equipamento vazio.
+            createEquipment() {
+                return { charges: 0, remainingTicks: 0, tier: 0 };
+            }
+
+            // Cria um inimigo pronto para ser posicionado.
+            createEnemy() {
+                return {
+                    x: 0,
+                    y: 0,
+                    facingLeft: false,
+                    alive: true,
+                    husk: false,
+                    respawnTicks: 0
+                };
+            }
+
+            // Restaura todos os valores de uma nova rodada.
+            resetRound() {
+                this.map.reset();
+                this.player = this.createPlayer();
+                this.enemies = Array.from({ length: 5 }, () => this.createEnemy());
+                this.enemies.forEach(enemy => this.spawnEnemy(enemy));
+                this.armor = this.createEquipment();
+                this.sword = this.createEquipment();
+                this.state = State.PLAYING;
+                this.effect = Effect.NONE;
+                this.lives = 3;
+                this.score = 0;
+                this.enemyTicks = 0;
+                this.animationTicks = 0;
+                this.effectTicks = 0;
+            }
+
+            // Posiciona um inimigo em uma casa válida fora da área inicial.
+            spawnEnemy(enemy) {
+                do {
+                    enemy.x = randomInt(2, 29);
+                    enemy.y = randomInt(2, 29);
+                } while (!this.map.walkable(enemy.x, enemy.y)
+                    || (enemy.x < 8 && enemy.y < 8));
+            }
+
+            // Associa o teclado às ações do jogo.
+            bindControls() {
+                window.addEventListener("keydown", event => {
+                    const controlledKeys = [
+                        "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+                        "KeyA", "KeyD", "KeyW", "KeyS", "KeyR", "Escape"
+                    ];
+                    if (controlledKeys.includes(event.code))
+                        event.preventDefault();
+                    this.handleKey(event.code);
+                });
+                this.canvas.addEventListener("pointerdown", () => this.canvas.focus());
+            }
+
+            // Interpreta comandos de saída, reinício e movimento.
+            handleKey(code) {
+                if (code === "Escape") {
+                    this.running = false;
+                    return;
+                }
+                if (this.state !== State.PLAYING) {
+                    if (code === "KeyR")
+                        this.resetRound();
+                    return;
+                }
+
+                let deltaX = 0;
+                let deltaY = 0;
+                if (code === "ArrowLeft" || code === "KeyA")
+                    deltaX = -1;
+                else if (code === "ArrowRight" || code === "KeyD")
+                    deltaX = 1;
+                else if (code === "ArrowUp" || code === "KeyW")
+                    deltaY = -1;
+                else if (code === "ArrowDown" || code === "KeyS")
+                    deltaY = 1;
+                else
+                    return;
+
+                const steps = this.effect === Effect.SPEED && this.effectTicks > 0 ? 2 : 1;
+                for (let step = 0; step < steps; ++step) {
+                    const nextX = this.player.x + deltaX;
+                    const nextY = this.player.y + deltaY;
+                    if (!this.map.walkable(nextX, nextY))
+                        break;
+                    if (deltaX !== 0)
+                        this.player.facingLeft = deltaX < 0;
+                    this.player.x = nextX;
+                    this.player.y = nextY;
+                    this.applyPickup(this.map.collect(nextX, nextY));
+                    this.enemies.forEach(enemy => this.resolveCollision(enemy));
+                }
+                if (this.map.gemsRemaining() === 0)
+                    this.state = State.WON;
+            }
+
+            // Aplica pontuação, equipamento ou efeito de um item.
+            applyPickup(pickup) {
+                const equipment = (charges, tier) => ({
+                    charges,
+                    remainingTicks: EQUIPMENT_DURATION,
+                    tier
+                });
+                switch (pickup) {
+                case Pickup.ARMOR_GOLD:
+                    this.armor = equipment(1, 1);
+                    break;
+                case Pickup.ARMOR_IRON:
+                    this.armor = equipment(2, 2);
+                    break;
+                case Pickup.ARMOR_DIAMOND:
+                    this.armor = equipment(3, 3);
+                    break;
+                case Pickup.SWORD_GOLD:
+                    this.sword = equipment(1, 1);
+                    break;
+                case Pickup.SWORD_IRON:
+                    this.sword = equipment(2, 2);
+                    break;
+                case Pickup.SWORD_DIAMOND:
+                    this.sword = equipment(3, 3);
+                    break;
+                case Pickup.EMERALD:
+                    this.score += 5;
+                    break;
+                case Pickup.DIAMOND:
+                    this.score += 10;
+                    break;
+                case Pickup.SUSPICIOUS_STEW: {
+                    const effects = [Effect.SPEED, Effect.INVISIBLE, Effect.IMMUNE];
+                    this.effect = effects[randomInt(0, effects.length - 1)];
+                    this.effectTicks = EFFECT_DURATION;
+                    this.score += 50;
+                    break;
+                }
+                }
+            }
+
+            // Resolve o encontro entre o jogador e um inimigo.
+            resolveCollision(enemy) {
+                if (!enemy.alive || enemy.x !== this.player.x || enemy.y !== this.player.y)
+                    return;
+
+                if (this.sword.charges > 0 && this.sword.remainingTicks > 0) {
+                    --this.sword.charges;
+                    this.score += 300;
+                    enemy.alive = false;
+                    enemy.respawnTicks = RESPAWN_DURATION;
+                    if (this.sword.charges === 0)
+                        this.sword = this.createEquipment();
+                    return;
+                }
+                if (this.effect === Effect.IMMUNE && this.effectTicks > 0)
+                    return;
+                if (this.armor.charges > 0 && this.armor.remainingTicks > 0) {
+                    --this.armor.charges;
+                    if (this.armor.charges === 0)
+                        this.armor = this.createEquipment();
+                } else {
+                    --this.lives;
+                    if (this.lives <= 0)
+                        this.state = State.LOST;
+                }
+                this.player = this.createPlayer();
+            }
+
+            // Move todos os inimigos e verifica colisões.
+            updateEnemies() {
+                for (const enemy of this.enemies) {
+                    if (!enemy.alive)
+                        continue;
+
+                    let deltaX;
+                    let deltaY;
+                    if (this.effect === Effect.INVISIBLE && this.effectTicks > 0) {
+                        deltaX = randomInt(-1, 1);
+                        deltaY = randomInt(-1, 1);
+                    } else {
+                        deltaX = Math.sign(this.player.x - enemy.x);
+                        deltaY = Math.sign(this.player.y - enemy.y);
+                    }
+
+                    const horizontalFirst = Math.random() < 0.5;
+                    let nextX = enemy.x + (horizontalFirst ? deltaX : 0);
+                    let nextY = enemy.y + (horizontalFirst ? 0 : deltaY);
+                    if (!this.map.walkable(nextX, nextY)) {
+                        nextX = enemy.x + (horizontalFirst ? 0 : deltaX);
+                        nextY = enemy.y + (horizontalFirst ? deltaY : 0);
+                    }
+                    if (this.map.walkable(nextX, nextY)) {
+                        if (nextX !== enemy.x)
+                            enemy.facingLeft = nextX < enemy.x;
+                        enemy.x = nextX;
+                        enemy.y = nextY;
+                    }
+                    this.resolveCollision(enemy);
+                }
+            }
+
+            // Avança temporizadores, efeitos e renascimentos em um quadro.
+            update() {
+                ++this.animationTicks;
+                if (this.armor.remainingTicks > 0 && --this.armor.remainingTicks === 0)
+                    this.armor = this.createEquipment();
+                if (this.sword.remainingTicks > 0 && --this.sword.remainingTicks === 0)
+                    this.sword = this.createEquipment();
+                if (this.effectTicks > 0 && --this.effectTicks === 0)
+                    this.effect = Effect.NONE;
+
+                for (const enemy of this.enemies) {
+                    if (!enemy.alive && --enemy.respawnTicks === 0) {
+                        enemy.alive = true;
+                        enemy.husk = !enemy.husk;
+                        this.spawnEnemy(enemy);
+                    }
+                }
+                if (this.state === State.PLAYING && ++this.enemyTicks >= 30) {
+                    this.enemyTicks = 0;
+                    this.updateEnemies();
+                }
+            }
+
+            // Retorna o nome do material de um equipamento.
+            materialName(tier) {
+                if (tier === 3)
+                    return "Diamante";
+                if (tier === 2)
+                    return "Ferro";
+                if (tier === 1)
+                    return "Ouro";
+                return "Nenhum";
+            }
+
+            // Desenha texto usando a aparência compacta do HUD original.
+            drawText(text, x, y, color = "white", align = "left") {
+                this.context.fillStyle = color;
+                this.context.textAlign = align;
+                this.context.textBaseline = "top";
+                this.context.font = "10px monospace";
+                this.context.fillText(text, x, y);
+            }
+
+            // Desenha um sprite, opcionalmente invertido na horizontal.
+            drawCharacter(image, sourceX, sourceY, sourceWidth, sourceHeight,
+                x, y, width, height, flip) {
+                const context = this.context;
+                context.save();
+                if (flip) {
+                    context.translate(x + width, y);
+                    context.scale(-1, 1);
+                    x = 0;
+                    y = 0;
+                }
+                context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight,
+                    x, y, width, height);
+                context.restore();
+            }
+
+            // Renderiza o estado completo do jogo.
+            render() {
+                const context = this.context;
+                context.imageSmoothingEnabled = false;
+                context.fillStyle = "rgb(8, 8, 12)";
+                context.fillRect(0, 0, SCREEN_SIZE, SCREEN_SIZE);
+                this.map.draw(context);
+
+                const frame = Math.floor(this.animationTicks / 10) % 4;
+                for (const enemy of this.enemies) {
+                    if (!enemy.alive)
+                        continue;
+                    const sourceX = (enemy.husk ? 177 : 11) + frame * 24;
+                    this.drawCharacter(this.images.zombie, sourceX, 119, 24, 24,
+                        enemy.x * TILE_SIZE, enemy.y * TILE_SIZE - 3,
+                        TILE_SIZE, TILE_SIZE + 4, enemy.facingLeft);
+                }
+                this.drawCharacter(this.images.steve, 24 + frame * 24, 96, 24, 24,
+                    this.player.x * TILE_SIZE, this.player.y * TILE_SIZE - 3,
+                    TILE_SIZE, TILE_SIZE + 4, this.player.facingLeft);
+
+                if (this.sword.charges > 0) {
+                    const icon = this.sword.tier === 3 ? Pickup.SWORD_DIAMOND
+                        : (this.sword.tier === 2 ? Pickup.SWORD_IRON : Pickup.SWORD_GOLD);
+                    const handX = this.player.x * TILE_SIZE
+                        + (this.player.facingLeft ? -5 : 10);
+                    this.map.drawPickupIcon(context, icon, handX,
+                        this.player.y * TILE_SIZE + 4, 11, this.player.facingLeft);
+                }
+
+                context.fillStyle = "rgba(0, 0, 0, 0.86)";
+                context.fillRect(3, 3, 506, 26);
+                this.drawText(`Mapa:${this.map.layout + 1}  Gemas:${this.map.gemsRemaining()}  `
+                    + `Pontos:${this.score}  Vidas:${this.lives}`, 7, 6);
+                this.drawText(`Armadura:${this.materialName(this.armor.tier)} ${this.armor.charges} `
+                    + `(${Math.ceil(this.armor.remainingTicks / FPS)}s)`, 245, 6,
+                    "rgb(100, 210, 255)");
+                this.drawText(`Espada:${this.materialName(this.sword.tier)} ${this.sword.charges} `
+                    + `(${Math.ceil(this.sword.remainingTicks / FPS)}s)`, 245, 17,
+                    "rgb(255, 230, 80)");
+
+                if (this.effect !== Effect.NONE) {
+                    const names = {
+                        [Effect.SPEED]: "Velocidade",
+                        [Effect.INVISIBLE]: "Invisivel",
+                        [Effect.IMMUNE]: "Imunidade"
+                    };
+                    const colors = {
+                        [Effect.SPEED]: "rgb(80, 255, 120)",
+                        [Effect.INVISIBLE]: "rgb(180, 180, 255)",
+                        [Effect.IMMUNE]: "rgb(255, 130, 80)"
+                    };
+                    this.drawText(`Efeito:${names[this.effect]} `
+                        + `(${Math.ceil(this.effectTicks / FPS)}s)`, 7, 18,
+                    colors[this.effect]);
+                }
+
+                context.fillStyle = "rgba(0, 0, 0, 0.86)";
+                context.fillRect(3, 492, 506, 17);
+                this.drawText("SETAS/WASD: mover   ESC: sair   R: reiniciar apos o fim",
+                    SCREEN_SIZE / 2, 497, "rgb(235, 235, 235)", "center");
+
+                if (this.state !== State.PLAYING) {
+                    context.fillStyle = "rgba(0, 0, 0, 0.88)";
+                    context.fillRect(75, 205, 362, 102);
+                    const won = this.state === State.WON;
+                    this.drawText(won ? "VOCE VENCEU!" : "FIM DE JOGO",
+                        SCREEN_SIZE / 2, 230,
+                        won ? "rgb(80, 255, 100)" : "rgb(255, 80, 80)", "center");
+                    this.drawText(`Pontuacao: ${this.score}`, SCREEN_SIZE / 2, 252,
+                        "white", "center");
+                    this.drawText("R reinicia  |  ESC sai", SCREEN_SIZE / 2, 278,
+                        "rgb(220, 220, 220)", "center");
+                }
+
+                if (!this.running) {
+                    context.fillStyle = "rgba(0, 0, 0, 0.88)";
+                    context.fillRect(75, 225, 362, 62);
+                    this.drawText("JOGO ENCERRADO", SCREEN_SIZE / 2, 242,
+                        "rgb(255, 230, 80)", "center");
+                    this.drawText("Recarregue a pagina para jogar novamente",
+                        SCREEN_SIZE / 2, 263, "white", "center");
+                }
+            }
+
+            // Mantém atualização fixa a 60 FPS e desenho sincronizado ao navegador.
+            loop(time) {
+                const elapsed = Math.min(time - this.lastTime, 250);
+                this.lastTime = time;
+                this.accumulator += elapsed;
+                const frameDuration = 1000 / FPS;
+                while (this.running && this.accumulator >= frameDuration) {
+                    this.update();
+                    this.accumulator -= frameDuration;
+                }
+                this.render();
+                requestAnimationFrame(nextTime => this.loop(nextTime));
+            }
+        }
+
+        // Carrega recursos, aplica transparência e inicia o jogo.
+        async function start() {
+            const canvas = document.getElementById("game");
+            const context = canvas.getContext("2d");
+            context.imageSmoothingEnabled = false;
+            context.fillStyle = "#08080c";
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = "white";
+            context.textAlign = "center";
+            context.font = "14px monospace";
+            context.fillText("Carregando MineMan...", 256, 256);
+
+            try {
+                const [floor, border, wall, rawBlocks, rawItems, steve, rawZombie] =
+                    await Promise.all([
+                        loadImage("Sprites/Stone_Block.bmp"),
+                        loadImage("Sprites/Smooth_Stone.bmp"),
+                        loadImage("Sprites/Cobble_Stone.png"),
+                        loadImage("Sprites/Blocks.png"),
+                        loadImage("Sprites/Itens.png"),
+                        loadImage("Sprites/Steve.png"),
+                        loadImage("Sprites/Zombie.png")
+                    ]);
+                const images = {
+                    floor,
+                    border,
+                    wall,
+                    steve,
+                    blocks: removeMask(rawBlocks, [[163, 73, 164]]),
+                    items: removeMask(rawItems, [[112, 56, 97], [182, 69, 166]]),
+                    zombie: removeMask(rawZombie, [[147, 187, 236]])
+                };
+                const game = new Game(canvas, images);
+                canvas.focus();
+                requestAnimationFrame(time => game.loop(time));
+            } catch (error) {
+                context.fillStyle = "#08080c";
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.fillStyle = "#ff6464";
+                context.fillText("Falha ao carregar os sprites.", 256, 244);
+                context.fillStyle = "white";
+                context.font = "11px monospace";
+                context.fillText("Execute por um servidor local na raiz do projeto.", 256, 266);
+                console.error(error);
+            }
+        }
+
+        start();
+    </script>
+</body>
+</html>

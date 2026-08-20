@@ -2,6 +2,8 @@
 
 [Português](#português) | [English](#english)
 
+**Jogue online / Play online:** [jluckmay.github.io/mineman](https://jluckmay.github.io/mineman/)
+
 ## Português
 
 MineMan é um jogo de exploração de labirintos inspirado no universo de
@@ -100,15 +102,51 @@ make clean
 Execute o jogo a partir da raiz do repositório, pois os caminhos dos sprites
 são relativos a essa pasta.
 
+### Versão web
+
+O arquivo `index.html` oferece a mesma experiência diretamente no navegador.
+Você pode jogar a versão publicada em
+[jluckmay.github.io/mineman](https://jluckmay.github.io/mineman/).
+
+Para evitar restrições do navegador ao carregar os sprites locais, inicie um
+servidor HTTP na raiz do projeto:
+
+```bash
+python3 -m http.server 8000
+```
+
+Depois, acesse `http://localhost:8000`. Os controles e as regras são os mesmos
+da versão em C++.
+
+### Ícones da aplicação
+
+O personagem principal é usado como favicon da versão web e como ícone dos
+pacotes nativos. No Windows, o Makefile incorpora `Icons/MineMan.ico`
+automaticamente ao `MineMan.exe`. Para pacotes Linux, use
+`Icons/MineMan.png` junto de `packaging/linux/MineMan.desktop`.
+
+### Executáveis gerados
+
+Os artefatos de distribuição são gravados em `dist/` e não são versionados:
+
+- `MineMan-Linux-x86_64.AppImage`: aplicativo Linux portátil com bibliotecas e
+  sprites incorporados.
+- `MineMan-Windows-x64.zip`: pacote Windows portátil com o executável, DLLs e
+  sprites necessários.
+
 ### Estrutura do projeto
 
 ```text
 MineMan/
+|-- Icons/          # Ícones PNG e ICO do personagem principal
+|-- packaging/      # Metadados para pacotes nativos
+|-- resources/      # Recurso de ícone do executável Windows
 |-- Sprites/        # Texturas, personagens e atlas de itens
 |-- src/
 |   |-- Game.*      # Ciclo principal, regras, inimigos e interface
 |   |-- Mapa.*      # Geração, itens e renderização do mapa
 |   `-- main.cpp    # Ponto de entrada
+|-- index.html      # Versão web executada com Canvas 2D
 |-- ASSETS.md       # Origem e condições dos recursos visuais
 |-- Makefile        # Automação da compilação
 |-- LICENSE         # Licença MIT do código-fonte
@@ -234,15 +272,51 @@ make clean
 Run the game from the repository root because sprite paths are relative to
 that directory.
 
+### Web version
+
+The `index.html` file provides the same experience directly in a web browser.
+You can play the published version at
+[jluckmay.github.io/mineman](https://jluckmay.github.io/mineman/).
+
+To avoid browser restrictions when loading local sprites, start an HTTP server
+from the project root:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000`. Controls and rules are the same as in the
+C++ version.
+
+### Application icons
+
+The main character is used as the web favicon and native package icon. On
+Windows, the Makefile automatically embeds `Icons/MineMan.ico` into
+`MineMan.exe`. For Linux packages, use `Icons/MineMan.png` together with
+`packaging/linux/MineMan.desktop`.
+
+### Generated executables
+
+Distribution artifacts are written to `dist/` and are not committed:
+
+- `MineMan-Linux-x86_64.AppImage`: portable Linux application with bundled
+  libraries and sprites.
+- `MineMan-Windows-x64.zip`: portable Windows package with the executable,
+  required DLLs, and sprites.
+
 ### Project structure
 
 ```text
 MineMan/
+|-- Icons/          # PNG and ICO icons featuring the main character
+|-- packaging/      # Native package metadata
+|-- resources/      # Windows executable icon resource
 |-- Sprites/        # Textures, characters, and item atlas
 |-- src/
 |   |-- Game.*      # Main loop, rules, enemies, and interface
 |   |-- Mapa.*      # Map generation, items, and rendering
 |   `-- main.cpp    # Entry point
+|-- index.html      # Canvas 2D web version
 |-- ASSETS.md       # Visual asset sources and usage conditions
 |-- Makefile        # Build automation
 |-- LICENSE         # MIT License for the source code

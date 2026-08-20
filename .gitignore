@@ -1,5 +1,6 @@
 # Build artifacts
 /MineMan
 /MineMan.exe
+/dist/
 /src/*.d
 /src/*.o

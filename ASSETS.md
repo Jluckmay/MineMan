@@ -2,8 +2,9 @@
 
 ## Português
 
-Os arquivos do diretório `Sprites/` são recursos de terceiros e **não estão
-abrangidos pela licença MIT** aplicada ao código do MineMan.
+Os arquivos dos diretórios `Sprites/` e `Icons/` são recursos de terceiros ou
+derivados deles e **não estão abrangidos pela licença MIT** aplicada ao código
+do MineMan. O ícone do projeto foi derivado do sprite do personagem principal.
 
 Eles foram obtidos no [The Spriters Resource](https://www.spriters-resource.com/)
 e disponibilizados na plataforma pelos usuários **Striker212** e
@@ -18,8 +19,9 @@ autorização expressa dos titulares.
 
 ## English
 
-Files under `Sprites/` are third-party assets and are **not covered by the MIT
-License** that applies to the MineMan source code.
+Files under `Sprites/` and `Icons/` are third-party assets or derivatives and
+are **not covered by the MIT License** that applies to the MineMan source code.
+The project icon was derived from the main character sprite.
 
 They were obtained from
 [The Spriters Resource](https://www.spriters-resource.com/) and uploaded to the

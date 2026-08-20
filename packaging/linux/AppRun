@@ -1,0 +1,6 @@
+#!/bin/sh
+
+APPDIR="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+cd "$APPDIR/usr/share/mineman" || exit 1
+exec "$APPDIR/usr/bin/MineMan" "$@"

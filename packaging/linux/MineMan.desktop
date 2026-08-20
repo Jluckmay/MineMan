@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=MineMan
+Comment=Minecraft-inspired maze game
+Comment[pt_BR]=Jogo de labirinto inspirado em Minecraft
+Exec=MineMan
+Icon=MineMan
+Categories=Game;
+Terminal=false
