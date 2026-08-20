@@ -2,7 +2,7 @@
 
 [Português](#português) | [English](#english)
 
-**Jogue online / Play online:** [jluckmay.github.io/mineman](https://jluckmay.github.io/mineman/)
+**Jogue online / Play online:** [jluckmay.github.io/mineman](https://jluckmay.github.io/MineMan/)
 
 ## Português
 
@@ -106,7 +106,7 @@ são relativos a essa pasta.
 
 O arquivo `index.html` oferece a mesma experiência diretamente no navegador.
 Você pode jogar a versão publicada em
-[jluckmay.github.io/mineman](https://jluckmay.github.io/mineman/).
+[jluckmay.github.io/mineman](https://jluckmay.github.io/MineMan/).
 
 Para evitar restrições do navegador ao carregar os sprites locais, inicie um
 servidor HTTP na raiz do projeto:
