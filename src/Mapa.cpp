@@ -1,13 +1,17 @@
 #include "Mapa.h"
+
+#include <allegro5/allegro_primitives.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <random>
-#include <allegro5/allegro_primitives.h>
+
 namespace
 {
     constexpr int TILE = 16;
 }
 
+// Inicializa o mapa, carrega as texturas e gera a primeira rodada.
 Mapa::Mapa(int w, int h) : width_(w), height_(h), tiles_(w * h), pickups_(w * h),
                            floor_(al_load_bitmap("Sprites/Stone_Block.bmp")), border_(al_load_bitmap("Sprites/Smooth_Stone.bmp")),
                            wall_(al_load_bitmap("Sprites/Cobble_Stone.png")), blocks_(al_load_bitmap("Sprites/Blocks.png")),
@@ -26,6 +30,8 @@ Mapa::Mapa(int w, int h) : width_(w), height_(h), tiles_(w * h), pickups_(w * h)
         std::fprintf(stderr, "Erro ao carregar texturas. Execute na raiz do projeto.\n");
     reset();
 }
+
+// Libera todas as texturas carregadas pelo mapa.
 Mapa::~Mapa()
 {
     if (floor_)
@@ -39,11 +45,15 @@ Mapa::~Mapa()
     if (items_)
         al_destroy_bitmap(items_);
 }
+
+// Altera o terreno de uma coordenada quando ela pertence ao mapa.
 void Mapa::setTile(int x, int y, Tile t)
 {
     if (x >= 0 && y >= 0 && x < width_ && y < height_)
         tiles_[index(x, y)] = t;
 }
+
+// Monta o terreno, as paredes e os minérios de um novo labirinto.
 void Mapa::buildMaze()
 {
     // Cada rodada começa vazia, recebe uma borda fixa e depois um dos dez
@@ -61,8 +71,10 @@ void Mapa::buildMaze()
         setTile(width_ - 1, y, Tile::Border);
     }
     layout_ = std::uniform_int_distribution<int>(0, 9)(rng_);
-    auto wall = [&](int x, int y)
-    {if(x>1&&y>1&&x<width_-2&&y<height_-2)setTile(x,y,Tile::Wall); };
+    auto wall = [&](int x, int y) {
+        if (x > 1 && y > 1 && x < width_ - 2 && y < height_ - 2)
+            setTile(x, y, Tile::Wall);
+    };
     if (layout_ == 0)
     { // Barras horizontais alternadas
         for (int y = 4; y < height_ - 3; y += 4)
@@ -184,6 +196,8 @@ void Mapa::buildMaze()
     for (int i = 0; i < oreCount; ++i)
         tiles_[floorCells[i]] = orePool[oreType(rng_)];
 }
+
+// Posiciona aleatoriamente gemas, equipamentos e efeitos no mapa.
 void Mapa::placePickups()
 {
     // A região próxima ao spawn fica livre. Embaralhar tanto as casas quanto o
@@ -202,11 +216,15 @@ void Mapa::placePickups()
     for (int i = 0; i < (int)content.size() && i < (int)free.size(); ++i)
         pickups_[free[i]] = content[i];
 }
+
+// Reinicia o mapa com um novo labirinto e novos itens.
 void Mapa::reset()
 {
     buildMaze();
     placePickups();
 }
+
+// Verifica se uma casa existe e não contém borda ou parede.
 bool Mapa::walkable(int x, int y) const
 {
     if (x < 0 || y < 0 || x >= width_ || y >= height_)
@@ -214,6 +232,8 @@ bool Mapa::walkable(int x, int y) const
     Tile t = tiles_[index(x, y)];
     return t != Tile::Border && t != Tile::Wall;
 }
+
+// Retorna o item de uma casa e o remove para evitar nova coleta.
 Mapa::Pickup Mapa::collect(int x, int y)
 {
     if (x < 0 || y < 0 || x >= width_ || y >= height_)
@@ -223,11 +243,15 @@ Mapa::Pickup Mapa::collect(int x, int y)
     pickups_[index(x, y)] = Pickup::None;
     return p;
 }
+
+// Conta as esmeraldas e os diamantes que ainda não foram coletados.
 int Mapa::gemsRemaining() const
 {
     return (int)std::count_if(pickups_.begin(), pickups_.end(), [](Pickup p)
                               { return p == Pickup::Emerald || p == Pickup::Diamond; });
 }
+
+// Recorta e desenha no mapa o sprite correspondente a um item.
 void Mapa::drawPickupIcon(Pickup p, int x, int y, int size, int flags) const
 {
     // Atlas personalizado: celulas de 16 px separadas por 2 px nesta folha.
@@ -276,6 +300,8 @@ void Mapa::drawPickupIcon(Pickup p, int x, int y, int size, int flags) const
     }
     al_draw_scaled_bitmap(items_, col * 18 + 1, row * 18 + 1, 16, 16, x, y, size, size, flags);
 }
+
+// Renderiza cada casa do mapa e o item que estiver sobre ela.
 void Mapa::draw() const
 {
     // Ordem de desenho por célula: piso/parede, veio de minério e item. Assim o

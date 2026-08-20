@@ -1,16 +1,21 @@
 #include "Game.h"
+
 #include <allegro5/allegro_image.h>
 #include <allegro5/allegro_primitives.h>
+
 #include <algorithm>
 #include <cstdio>
 
+// Inicializa o gerador aleatório usado pelas regras do jogo.
 Game::Game() : rng_(std::random_device{}()) {}
 
+// Garante a liberação dos recursos mantidos pelo jogo.
 Game::~Game()
 {
     shutdown();
 }
 
+// Prepara o Allegro, cria a janela e carrega os recursos necessários.
 bool Game::initialize()
 {
     allegroReady_ = al_init();
@@ -45,45 +50,59 @@ bool Game::initialize()
     return true;
 }
 
+// Destrói os recursos do Allegro na ordem apropriada.
 void Game::shutdown()
 {
     // O mapa precisa liberar seus bitmaps antes de o display ser destruído.
     map_.reset();
-    if (steve_) al_destroy_bitmap(steve_);
-    if (zombie_) al_destroy_bitmap(zombie_);
-    if (font_) al_destroy_font(font_);
-    if (queue_) al_destroy_event_queue(queue_);
-    if (timer_) al_destroy_timer(timer_);
-    if (display_) al_destroy_display(display_);
+    if (steve_)
+        al_destroy_bitmap(steve_);
+    if (zombie_)
+        al_destroy_bitmap(zombie_);
+    if (font_)
+        al_destroy_font(font_);
+    if (queue_)
+        al_destroy_event_queue(queue_);
+    if (timer_)
+        al_destroy_timer(timer_);
+    if (display_)
+        al_destroy_display(display_);
     steve_ = zombie_ = nullptr;
     font_ = nullptr;
     queue_ = nullptr;
     timer_ = nullptr;
     display_ = nullptr;
 
-    if (primitivesReady_) al_shutdown_primitives_addon();
-    if (imageReady_) al_shutdown_image_addon();
+    if (primitivesReady_)
+        al_shutdown_primitives_addon();
+    if (imageReady_)
+        al_shutdown_image_addon();
     primitivesReady_ = imageReady_ = allegroReady_ = false;
 }
 
+// Converte o nível numérico de um equipamento em seu nome.
 const char *Game::materialName(int tier)
 {
-    if (tier == 3) return "Diamante";
-    if (tier == 2) return "Ferro";
-    if (tier == 1) return "Ouro";
+    if (tier == 3)
+        return "Diamante";
+    if (tier == 2)
+        return "Ferro";
+    if (tier == 1)
+        return "Ouro";
     return "Nenhum";
 }
 
+// Sorteia para um inimigo uma posição transitável fora da área inicial.
 void Game::spawnEnemy(Enemy &enemy)
 {
     do
     {
         enemy.x = 2 + static_cast<int>(rng_() % 28);
         enemy.y = 2 + static_cast<int>(rng_() % 28);
-    }
-    while (!map_->walkable(enemy.x, enemy.y) || (enemy.x < 8 && enemy.y < 8));
+    } while (!map_->walkable(enemy.x, enemy.y) || (enemy.x < 8 && enemy.y < 8));
 }
 
+// Reinicia mapa, personagens, equipamentos, pontuação e temporizadores.
 void Game::resetRound()
 {
     map_->reset();
@@ -102,18 +121,35 @@ void Game::resetRound()
     effectTicks_ = 0;
 }
 
+// Atualiza pontuação, equipamentos ou efeitos conforme o item coletado.
 void Game::applyPickup(Mapa::Pickup pickup)
 {
     switch (pickup)
     {
-    case Mapa::Pickup::ArmorGold: armor_ = {1, EquipmentDuration, 1}; break;
-    case Mapa::Pickup::ArmorIron: armor_ = {2, EquipmentDuration, 2}; break;
-    case Mapa::Pickup::ArmorDiamond: armor_ = {3, EquipmentDuration, 3}; break;
-    case Mapa::Pickup::SwordGold: sword_ = {1, EquipmentDuration, 1}; break;
-    case Mapa::Pickup::SwordIron: sword_ = {2, EquipmentDuration, 2}; break;
-    case Mapa::Pickup::SwordDiamond: sword_ = {3, EquipmentDuration, 3}; break;
-    case Mapa::Pickup::Emerald: score_ += 5; break;
-    case Mapa::Pickup::Diamond: score_ += 10; break;
+    case Mapa::Pickup::ArmorGold:
+        armor_ = {1, EquipmentDuration, 1};
+        break;
+    case Mapa::Pickup::ArmorIron:
+        armor_ = {2, EquipmentDuration, 2};
+        break;
+    case Mapa::Pickup::ArmorDiamond:
+        armor_ = {3, EquipmentDuration, 3};
+        break;
+    case Mapa::Pickup::SwordGold:
+        sword_ = {1, EquipmentDuration, 1};
+        break;
+    case Mapa::Pickup::SwordIron:
+        sword_ = {2, EquipmentDuration, 2};
+        break;
+    case Mapa::Pickup::SwordDiamond:
+        sword_ = {3, EquipmentDuration, 3};
+        break;
+    case Mapa::Pickup::Emerald:
+        score_ += 5;
+        break;
+    case Mapa::Pickup::Diamond:
+        score_ += 10;
+        break;
     case Mapa::Pickup::SuspiciousStew:
     {
         const int roll = static_cast<int>(rng_() % 3);
@@ -122,10 +158,12 @@ void Game::applyPickup(Mapa::Pickup pickup)
         score_ += 50;
         break;
     }
-    default: break;
+    default:
+        break;
     }
 }
 
+// Resolve ataque, defesa ou perda de vida durante uma colisão.
 void Game::resolveCollision(Enemy &enemy)
 {
     if (!enemy.alive || enemy.x != player_.x || enemy.y != player_.y)
@@ -138,7 +176,8 @@ void Game::resolveCollision(Enemy &enemy)
         score_ += 300;
         enemy.alive = false;
         enemy.respawnTicks = RespawnDuration;
-        if (sword_.charges == 0) sword_ = {};
+        if (sword_.charges == 0)
+            sword_ = {};
         return;
     }
     if (effect_ == Effect::Immune && effectTicks_ > 0)
@@ -146,16 +185,19 @@ void Game::resolveCollision(Enemy &enemy)
     if (armor_.charges > 0 && armor_.remainingTicks > 0)
     {
         --armor_.charges;
-        if (armor_.charges == 0) armor_ = {};
+        if (armor_.charges == 0)
+            armor_ = {};
     }
     else
     {
         --lives_;
-        if (lives_ <= 0) state_ = State::Lost;
+        if (lives_ <= 0)
+            state_ = State::Lost;
     }
     player_ = {};
 }
 
+// Trata comandos de saída, reinício e movimentação do jogador.
 void Game::handleKey(int keycode)
 {
     if (keycode == ALLEGRO_KEY_ESCAPE)
@@ -165,37 +207,49 @@ void Game::handleKey(int keycode)
     }
     if (state_ != State::Playing)
     {
-        if (keycode == ALLEGRO_KEY_R) resetRound();
+        if (keycode == ALLEGRO_KEY_R)
+            resetRound();
         return;
     }
 
     int dx = 0, dy = 0;
-    if (keycode == ALLEGRO_KEY_LEFT || keycode == ALLEGRO_KEY_A) dx = -1;
-    else if (keycode == ALLEGRO_KEY_RIGHT || keycode == ALLEGRO_KEY_D) dx = 1;
-    else if (keycode == ALLEGRO_KEY_UP || keycode == ALLEGRO_KEY_W) dy = -1;
-    else if (keycode == ALLEGRO_KEY_DOWN || keycode == ALLEGRO_KEY_S) dy = 1;
-    else return;
+    if (keycode == ALLEGRO_KEY_LEFT || keycode == ALLEGRO_KEY_A)
+        dx = -1;
+    else if (keycode == ALLEGRO_KEY_RIGHT || keycode == ALLEGRO_KEY_D)
+        dx = 1;
+    else if (keycode == ALLEGRO_KEY_UP || keycode == ALLEGRO_KEY_W)
+        dy = -1;
+    else if (keycode == ALLEGRO_KEY_DOWN || keycode == ALLEGRO_KEY_S)
+        dy = 1;
+    else
+        return;
 
     const int steps = effect_ == Effect::Speed && effectTicks_ > 0 ? 2 : 1;
     for (int step = 0; step < steps; ++step)
     {
         const int nextX = player_.x + dx;
         const int nextY = player_.y + dy;
-        if (!map_->walkable(nextX, nextY)) break;
-        if (dx != 0) player_.facingLeft = dx < 0;
+        if (!map_->walkable(nextX, nextY))
+            break;
+        if (dx != 0)
+            player_.facingLeft = dx < 0;
         player_.x = nextX;
         player_.y = nextY;
         applyPickup(map_->collect(nextX, nextY));
-        for (Enemy &enemy : enemies_) resolveCollision(enemy);
+        for (Enemy &enemy : enemies_)
+            resolveCollision(enemy);
     }
-    if (map_->gemsRemaining() == 0) state_ = State::Won;
+    if (map_->gemsRemaining() == 0)
+        state_ = State::Won;
 }
 
+// Move cada inimigo em direção ao jogador ou aleatoriamente.
 void Game::updateEnemies()
 {
     for (Enemy &enemy : enemies_)
     {
-        if (!enemy.alive) continue;
+        if (!enemy.alive)
+            continue;
 
         int dx, dy;
         if (effect_ == Effect::Invisible && effectTicks_ > 0)
@@ -219,7 +273,8 @@ void Game::updateEnemies()
         }
         if (map_->walkable(nextX, nextY))
         {
-            if (nextX != enemy.x) enemy.facingLeft = nextX < enemy.x;
+            if (nextX != enemy.x)
+                enemy.facingLeft = nextX < enemy.x;
             enemy.x = nextX;
             enemy.y = nextY;
         }
@@ -227,12 +282,16 @@ void Game::updateEnemies()
     }
 }
 
+// Avança a animação, os efeitos, equipamentos e inimigos.
 void Game::update()
 {
     ++animationTicks_;
-    if (armor_.remainingTicks > 0 && --armor_.remainingTicks == 0) armor_ = {};
-    if (sword_.remainingTicks > 0 && --sword_.remainingTicks == 0) sword_ = {};
-    if (effectTicks_ > 0 && --effectTicks_ == 0) effect_ = Effect::None;
+    if (armor_.remainingTicks > 0 && --armor_.remainingTicks == 0)
+        armor_ = {};
+    if (sword_.remainingTicks > 0 && --sword_.remainingTicks == 0)
+        sword_ = {};
+    if (effectTicks_ > 0 && --effectTicks_ == 0)
+        effect_ = Effect::None;
 
     for (Enemy &enemy : enemies_)
     {
@@ -251,6 +310,7 @@ void Game::update()
     }
 }
 
+// Renderiza o estado atual do jogo e sua interface na janela.
 void Game::render()
 {
     const int width = al_get_display_width(display_);
@@ -271,7 +331,8 @@ void Game::render()
     const int frame = (animationTicks_ / 10) % 4;
     for (const Enemy &enemy : enemies_)
     {
-        if (!enemy.alive) continue;
+        if (!enemy.alive)
+            continue;
         const int sourceX = (enemy.husk ? 177 : 11) + frame * 24;
         al_draw_scaled_bitmap(zombie_, sourceX, 119, 24, 24, enemy.x * TileSize,
                               enemy.y * TileSize - 3, TileSize, TileSize + 4,
@@ -328,6 +389,7 @@ void Game::render()
     al_flip_display();
 }
 
+// Processa eventos e quadros até que o jogador encerre a aplicação.
 int Game::run()
 {
     if (!initialize())
